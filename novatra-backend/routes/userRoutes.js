@@ -1,5 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const passport = require('passport');
+const jwt = require('jsonwebtoken');
+const googleLoginHandler = require('../controllers/userController');
 
 const {
   registerUser,
@@ -9,20 +12,14 @@ const {
   forgotPassword,
   resetPassword,
   getProfile,
-  updateProfile
+  updateProfile,
+  getMe 
 } = require('../controllers/userController');
-
 const { protect } = require('../middleware/auth');
-
 const router = express.Router();
 
-/**
- * NOTE:
- * OTP limiter removed here to avoid middleware mounting issues.
- * If you want rate limiting later, add it as route-level middleware
- * (e.g. router.post('/register', otpLimiter, validators..., handler))
- * or use a separate middleware/route file (not app.use(path, limiter)).
- */
+// router.post('/google-login', googleLoginHandler);
+
 
 // Public routes with validation
 router.post(
@@ -45,7 +42,7 @@ router.post('/login', loginUser);
 router.post('/login-otp', loginUserOTP);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
-
+router.get("/me", protect, getMe);
 // Private routes
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);

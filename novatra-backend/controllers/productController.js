@@ -4,82 +4,71 @@ const Product = require('../models/Product');
 
 // @desc    Create a product (Merchant)
 // @route   POST /api/products
-// @access  Private (Merchant)
+// @access  Private (Merchant/Admin)
 const createProduct = async (req, res) => {
   try {
-    // If merchant, ensure they are approved (middleware double-checks but this is a safeguard)
     if (req.user.role === 'merchant' && !req.user.isApproved) {
       return res.status(403).json({ message: 'Merchant account not approved by admin.' });
     }
 
-    const { name, description, price, category, images, stock } = req.body;
+    const { name, description, price, category, images = [], stock = 0 } = req.body;
 
     const product = new Product({
       name,
       description,
-      price,
+      price: Number(price),
       category,
       images,
-      stock,
-      merchant: req.user.role === 'merchant' ? req.user._id : undefined // admin-created products can have no merchant or set manually
+      stock: Number(stock),
+      merchant: req.user.role === 'merchant' ? req.user._id : undefined
     });
 
     await product.save();
     res.status(201).json({ message: 'Product created successfully', product });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
-
 
 // @desc    Get all products with filters
 // @route   GET /api/products
 // @access  Public
 const getProducts = async (req, res) => {
   try {
-    let { category, minPrice, maxPrice, keyword, sortBy, order, page, limit } = req.query;
+    const { category, minPrice, maxPrice, keyword, sortBy, order } = req.query;
     let filter = {};
 
+    // Filters
     if (category) filter.category = category;
     if (minPrice || maxPrice) {
       filter.price = {};
       if (minPrice) filter.price.$gte = Number(minPrice);
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
-    if (keyword) {
-      filter.name = { $regex: keyword, $options: 'i' };
-    }
+    if (keyword) filter.name = { $regex: keyword, $options: "i" };
 
-    page = Number(page) || 1;
-    limit = Number(limit) || 10;
-    const skip = (page - 1) * limit;
-
+    // Sorting
     let sort = {};
     if (sortBy) {
-      order = order === 'desc' ? -1 : 1;
-      sort[sortBy] = order;
+      sort[sortBy] = order === "desc" ? -1 : 1;
     } else {
       sort.createdAt = -1; // default newest first
     }
 
-    const products = await Product.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .populate('merchant', 'storeName');
-
-    const total = await Product.countDocuments(filter);
+    // Fetch all products (no limit)
+    const products = await Product.find(filter).sort(sort).populate("merchant", "storeName");
 
     res.status(200).json({
       products,
-      total,
-      page,
-      pages: Math.ceil(total / limit)
+      total: products.length
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
+
 
 
 // @desc    Get product by ID
@@ -91,19 +80,19 @@ const getProductById = async (req, res) => {
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.status(200).json(product);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Update a product (Merchant)
+// @desc    Update a product
 // @route   PUT /api/products/:id
-// @access  Private (Merchant)
+// @access  Private (Merchant/Admin)
 const updateProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
-    // If merchant, only allow if they own and are approved
     if (req.user.role === 'merchant') {
       if (!req.user.isApproved) return res.status(403).json({ message: 'Merchant not approved' });
       if (product.merchant && product.merchant.toString() !== req.user._id.toString()) {
@@ -111,45 +100,54 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    // If admin, allowed to update any product
     const { name, description, price, category, images, stock } = req.body;
     if (name) product.name = name;
     if (description) product.description = description;
-    if (price !== undefined) product.price = price;
+    if (price !== undefined) product.price = Number(price);
     if (category) product.category = category;
     if (images) product.images = images;
-    if (stock !== undefined) product.stock = stock;
+    if (stock !== undefined) product.stock = Number(stock);
 
     await product.save();
     res.status(200).json({ message: 'Product updated', product });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-
-// @desc    Delete a product (Merchant)
+// @desc    Delete a product
 // @route   DELETE /api/products/:id
-// @access  Private (Merchant)
+// @access  Private (Merchant/Admin)
 const deleteProduct = async (req, res) => {
   try {
+    // Validate ObjectId
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
     if (req.user.role === 'merchant') {
-      if (!req.user.isApproved) return res.status(403).json({ message: 'Merchant not approved' });
+      if (!req.user.isApproved) {
+        return res.status(403).json({ message: 'Merchant not approved' });
+      }
       if (product.merchant && product.merchant.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: 'Access denied: not your product' });
       }
     }
 
-    // admin may delete any product
-    await product.remove();
+    await Product.findByIdAndDelete(req.params.id); // ✅ safer than product.remove()
+
     res.status(200).json({ message: 'Product deleted successfully' });
   } catch (error) {
+    console.error("Delete Product Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
+
 module.exports = {
   createProduct,
   getProducts,

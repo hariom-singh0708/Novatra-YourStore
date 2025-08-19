@@ -1,135 +1,126 @@
-const Order = require('../models/Order');
-const User = require('../models/User');
-const Product = require('../models/Product');
+const Order = require("../models/Order");
+const User = require("../models/User");
+const Product = require("../models/Product");
+const Razorpay = require("razorpay");
+const crypto = require("crypto");
 
-// @desc    Place an order
-// @route   POST /api/orders
-// @access  Private (User)
+// --- Create Order ---
 const placeOrder = async (req, res) => {
   try {
-    const { shippingAddress, paymentMethod, paymentResult } = req.body;
+    const { shippingAddress, paymentMethod, cart: clientCart } = req.body;
+    if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
 
-    const user = await User.findById(req.user._id).populate('cart.product');
-    if (user.cart.length === 0) {
-      return res.status(400).json({ message: 'Cart is empty' });
+    const user = await User.findById(req.user._id).populate("cart.product");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    let cartItems = clientCart?.length ? clientCart : user.cart;
+    if (!cartItems?.length) return res.status(400).json({ message: "Cart is empty" });
+
+    const orderItems = [];
+    let totalPrice = 0;
+
+    for (const item of cartItems) {
+      const productDoc = await Product.findById(item.product._id || item.product);
+      if (!productDoc) continue;
+      orderItems.push({ product: productDoc._id, quantity: item.quantity || 1, price: productDoc.price });
+      totalPrice += productDoc.price * (item.quantity || 1);
     }
 
-    const orderItems = user.cart.map((item) => ({
-      product: item.product._id,
-      quantity: item.quantity,
-      price: item.product.price
-    }));
+    if (!orderItems.length) return res.status(400).json({ message: "No valid products in cart" });
 
-    // Calculate total price
-    const totalPrice = orderItems.reduce(
-      (acc, item) => acc + item.price * item.quantity,
-      0
-    );
-
-    // Create order (merchant can be set to the first product's merchant for simplicity)
     const order = new Order({
       user: user._id,
-      merchant: user.cart[0].product.merchant,
       orderItems,
       shippingAddress,
       paymentMethod,
-      paymentResult,
       totalPrice,
-      isPaid: paymentMethod.toLowerCase() === 'cod' ? false : true,
-      paidAt: paymentMethod.toLowerCase() === 'cod' ? null : Date.now()
+      isPaid: paymentMethod.toLowerCase() === "cod" ? false : false,
+      status: "Pending",
     });
 
     await order.save();
-
-    // Add order to user's orders
     user.orders.push(order._id);
-    user.cart = []; // clear cart after order
+    if (!clientCart?.length) user.cart = [];
     await user.save();
 
-    res.status(201).json({ message: 'Order placed successfully', order });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(201).json({ message: "Order created", order });
+  } catch (err) {
+    console.error("placeOrder error:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-// @desc    Get user orders
-// @route   GET /api/orders/my-orders
-// @access  Private (User)
-const getUserOrders = async (req, res) => {
+// --- Create Razorpay Order ---
+const createRazorpayOrder = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id }).populate(
-      'orderItems.product',
-      'name price images'
-    );
-    res.status(200).json(orders);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    const { amount, orderId } = req.body;
+    if (!amount || !orderId) return res.status(400).json({ message: "Missing amount or orderId" });
+
+    const instance = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+
+    const razorpayOrder = await instance.orders.create({
+      amount: Math.round(amount * 100), // in paise
+      currency: "INR",
+      receipt: `order_${orderId}`,
+      notes: { orderId: String(orderId) },
+    });
+
+    res.status(200).json({
+      id: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+    });
+  } catch (err) {
+    console.error("createRazorpayOrder error:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-// @desc    Get merchant orders
-// @route   GET /api/orders/merchant
-// @access  Private (Merchant)
-const getMerchantOrders = async (req, res) => {
+// --- Verify Payment & Mark Order Paid ---
+const markOrderPaid = async (req, res) => {
   try {
-    const orders = await Order.find({ merchant: req.user._id }).populate(
-      'orderItems.product user',
-      'name email'
-    );
-    res.status(200).json(orders);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    const { id } = req.params;
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, email } = req.body;
 
-// @desc    Get all orders (Admin)
-// @route   GET /api/orders
-// @access  Private (Admin)
-const getAllOrders = async (req, res) => {
-  try {
-    const orders = await Order.find()
-      .populate('user', 'name email')
-      .populate('merchant', 'storeName');
-    res.status(200).json(orders);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ message: "Order not found" });
 
-// @desc    Update order status (Admin or Merchant)
-// @route   PATCH /api/orders/:id/status
-// @access  Private (Admin or Merchant)
-const updateOrderStatus = async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: 'Order not found' });
+    const generated_signature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(razorpay_order_id + "|" + razorpay_payment_id)
+      .digest("hex");
 
-    const { status } = req.body;
+    if (generated_signature !== razorpay_signature)
+      return res.status(400).json({ message: "Invalid payment signature" });
 
-    // Only merchant or admin can update status
-    if (
-      req.user.role === 'merchant' &&
-      order.merchant.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    order.status = status;
-
-    // Mark delivered if status is delivered
-    if (status === 'Delivered') order.deliveredAt = Date.now();
+    order.isPaid = true;
+    order.paidAt = Date.now();
+    order.paymentResult = {
+      id: razorpay_payment_id,
+      status: "captured",
+      update_time: new Date().toISOString(),
+      email_address: email || "",
+    };
 
     await order.save();
-    res.status(200).json({ message: 'Order status updated', order });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(200).json({ message: "Payment verified and order marked paid", order });
+  } catch (err) {
+    console.error("markOrderPaid error:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-module.exports = {
-  placeOrder,
-  getUserOrders,
-  getMerchantOrders,
-  getAllOrders,
-  updateOrderStatus
+// --- Get User Orders ---
+const getUserOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ user: req.user._id }).populate("orderItems.product");
+    res.status(200).json(orders);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
+
+module.exports = { placeOrder, createRazorpayOrder, markOrderPaid, getUserOrders };

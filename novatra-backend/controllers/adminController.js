@@ -39,6 +39,42 @@ const getAnalytics = async (req, res) => {
   }
 };
 
+// ✅ Get all merchants (with approval status)
+const getAllMerchants = async (req, res) => {
+  try {
+    const merchants = await Merchant.find()
+      .select('-password')
+      .sort({ createdAt: -1 });
+    res.status(200).json(merchants);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ✅ Approve or revoke merchant
+// @route PUT /api/admin/merchants/:id/approve
+// @access Private (Admin)
+const setMerchantApproval = async (req, res) => {
+  try {
+    const merchantId = req.params.id;
+    const { approve } = req.body; // true or false
+
+    const merchant = await Merchant.findById(merchantId);
+    if (!merchant) return res.status(404).json({ message: 'Merchant not found' });
+
+    merchant.isApproved = !!approve;
+    merchant.approvedAt = approve ? new Date() : null;
+    await merchant.save();
+
+    res.status(200).json({
+      message: `Merchant ${approve ? 'approved' : 'approval revoked'}`,
+      merchant
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Get all users
 const getAllUsers = async (req, res) => {
   try {
@@ -49,33 +85,6 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Get all merchants (with approval status)
-const getAllMerchants = async (req, res) => {
-  try {
-    const merchants = await Merchant.find().select('-password');
-    res.status(200).json(merchants);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// Approve (or revoke approval) for merchant
-const setMerchantApproval = async (req, res) => {
-  try {
-    const merchantId = req.params.id;
-    const { approve } = req.body; // true or false
-
-    const merchant = await Merchant.findById(merchantId);
-    if (!merchant) return res.status(404).json({ message: 'Merchant not found' });
-
-    merchant.isApproved = !!approve;
-    await merchant.save();
-
-    res.status(200).json({ message: `Merchant ${approve ? 'approved' : 'revoked'}`, merchant });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
 
 // Delete merchant (admin)
 const deleteMerchant = async (req, res) => {

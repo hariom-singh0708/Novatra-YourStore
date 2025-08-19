@@ -1,26 +1,8 @@
-:root{
-  --brand:#6c5ce7;
-  --brand-2:#00b894;
-}
-html, body { height: 100%; }
-body { background: #f8f9fa; }
-
-/* smooth animations */
-.fade-in { animation: fadeIn .6s ease both; }
-@keyframes fadeIn { from{opacity:0; transform: translateY(8px);} to{opacity:1; transform: translateY(0);} }
-
-.hover-rise { transition: transform .25s ease, box-shadow .25s ease; }
-.hover-rise:hover { transform: translateY(-4px); box-shadow: 0 1rem 2rem rgba(0,0,0,.12); }
-
-.btn-animated { transition: transform .2s ease, box-shadow .2s ease; }
-.btn-animated:hover { transform: translateY(-2px) scale(1.01); box-shadow: 0 .75rem 1rem rgba(0,0,0,.15); }
-
-.navbar-blur { backdrop-filter: saturate(180%) blur(10px); background: rgba(255,255,255,.8) !important; }
-
-.badge-glow { box-shadow: 0 0 .5rem rgba(108,92,231,.6); }
-
-.card-zoom img { transition: transform .35s ease; }
-.card-zoom:hover img { transform: scale(1.05); }
-
-/* hero */
-.hero-gradient { background: linear-gradient(135deg, #f0f2ff 0%, #eafff7 100%); }
+/* keep it minimal; rely on Bootstrap + animate.css like your current files */
+.badge-glow { box-shadow: 0 0 10px rgba(13,110,253,.5); }
+.btn-animated { transition: transform .15s ease; }
+.btn-animated:hover { transform: translateY(-2px); }
+.card-zoom .card-img-top { transition: transform .3s ease; }
+.card-zoom:hover .card-img-top { transform: scale(1.05); }
+.hover-rise:hover { transform: translateY(-4px); transition: transform .2s ease; }
+.hero-gradient { background: linear-gradient(180deg,#ffffff, #f8f9fa); }

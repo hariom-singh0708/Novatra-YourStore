@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "animate.css";
-import { FaUser, FaEnvelope, FaLock, FaStore } from "react-icons/fa";
+import { FaEnvelope, FaLock, FaUser, FaStore } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { toast, ToastContainer } from "react-toastify";
@@ -15,61 +15,30 @@ const Register = () => {
     email: "",
     password: "",
     role: "user",
-    storeName: "",
+    storeName: ""
   });
   const [loading, setLoading] = useState(false);
-  const [otpModal, setOtpModal] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [userId, setUserId] = useState(null);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // 👉 Submit Registration
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const res = await api.post("/users/register", form);
-      setUserId(res.data.userId);
-      setOtpModal(true); // open OTP modal
-      toast.success("OTP sent to your email!");
+      const res = await api.post("/users/register", {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: form.role,
+        ...(form.role === "merchant" && { storeName: form.storeName }),
+      });
+
+      toast.success(res.data.message || "Registered successfully!");
+      navigate("/verify-otp", { state: { userId: res.data.userId } }); // or redirect to OTP verification page
     } catch (err) {
       toast.error(err.response?.data?.message || "Registration failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 👉 Verify OTP
-  const handleVerifyOtp = async () => {
-    if (!otp) return toast.warning("Please enter OTP");
-    setLoading(true);
-
-    try {
-      const res = await api.post("/users/verify-otp", { userId, otp });
-      localStorage.setItem("token", res.data.token);
-      toast.success("OTP verified! Logging in...");
-      setOtpModal(false);
-      navigate("/"); // redirect after login
-    } catch (err) {
-      toast.error(err.response?.data?.message || "OTP verification failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 👉 Resend OTP
-  const handleResendOtp = async () => {
-    setLoading(true);
-    try {
-      const res = await api.post("/users/login-otp", { email: form.email });
-      setUserId(res.data.userId);
-      toast.info("OTP resent to your email!");
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to resend OTP");
     } finally {
       setLoading(false);
     }
@@ -82,13 +51,11 @@ const Register = () => {
         className="card shadow-lg p-4 rounded-4 animate__animated animate__fadeInDown"
         style={{ width: "400px", background: "#fff" }}
       >
-        <h3 className="text-center mb-4 fw-bold animate__animated animate__fadeIn animate__delay-1s">
-          Create Account
-        </h3>
+        <h3 className="text-center mb-4 fw-bold">Create Account</h3>
 
         <form onSubmit={handleSubmit}>
           {/* Name */}
-          <div className="mb-3 position-relative animate__animated animate__fadeInLeft animate__delay-2s">
+          <div className="mb-3 position-relative">
             <FaUser className="position-absolute top-50 translate-middle-y ms-2 text-secondary" />
             <input
               type="text"
@@ -102,7 +69,7 @@ const Register = () => {
           </div>
 
           {/* Email */}
-          <div className="mb-3 position-relative animate__animated animate__fadeInRight animate__delay-3s">
+          <div className="mb-3 position-relative">
             <FaEnvelope className="position-absolute top-50 translate-middle-y ms-2 text-secondary" />
             <input
               type="email"
@@ -116,7 +83,7 @@ const Register = () => {
           </div>
 
           {/* Password */}
-          <div className="mb-3 position-relative animate__animated animate__fadeInLeft animate__delay-4s">
+          <div className="mb-3 position-relative">
             <FaLock className="position-absolute top-50 translate-middle-y ms-2 text-secondary" />
             <input
               type="password"
@@ -129,13 +96,14 @@ const Register = () => {
             />
           </div>
 
-          {/* Role Selector */}
-          <div className="mb-3 animate__animated animate__fadeInRight animate__delay-5s">
+          {/* Role Selection */}
+          <div className="mb-3">
             <select
               className="form-select"
               name="role"
               value={form.role}
               onChange={handleChange}
+              required
             >
               <option value="user">User</option>
               <option value="merchant">Merchant</option>
@@ -144,7 +112,7 @@ const Register = () => {
 
           {/* Store Name (only for merchants) */}
           {form.role === "merchant" && (
-            <div className="mb-3 position-relative animate__animated animate__fadeInUp animate__delay-6s">
+            <div className="mb-3 position-relative">
               <FaStore className="position-absolute top-50 translate-middle-y ms-2 text-secondary" />
               <input
                 type="text"
@@ -162,56 +130,19 @@ const Register = () => {
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary w-100 py-2 fw-semibold rounded-3 animate__animated animate__pulse animate__infinite"
+            className="btn btn-primary w-100 py-2 fw-semibold rounded-3"
           >
-            {loading ? "Please wait…" : "Register"}
+            {loading ? "Registering…" : "Register"}
           </button>
         </form>
 
-        {/* Footer */}
-        <p className="text-center mt-3 mb-0 text-secondary animate__animated animate__fadeInUp animate__delay-7s">
+        <p className="text-center mt-3 mb-0 text-secondary">
           Already have an account?{" "}
-          <a href="/login" className="text-decoration-none fw-semibold">
+          <a href="/login" className="fw-semibold text-decoration-none">
             Login
           </a>
         </p>
       </div>
-
-      {/* OTP Modal */}
-      {otpModal && (
-        <div
-          className="modal fade show d-block"
-          tabIndex="-1"
-          style={{ background: "rgba(0,0,0,0.5)" }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content rounded-4 p-3">
-              <h5 className="fw-bold text-center">Verify OTP</h5>
-              <input
-                type="text"
-                className="form-control my-3 text-center"
-                placeholder="Enter OTP"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-              />
-              <button
-                className="btn btn-success w-100 mb-2"
-                disabled={loading}
-                onClick={handleVerifyOtp}
-              >
-                {loading ? "Verifying…" : "Verify OTP"}
-              </button>
-              <button
-                className="btn btn-outline-primary w-100"
-                disabled={loading}
-                onClick={handleResendOtp}
-              >
-                Resend OTP
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

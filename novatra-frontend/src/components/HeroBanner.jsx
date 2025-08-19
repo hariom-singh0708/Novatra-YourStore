@@ -10,9 +10,8 @@ export default function HeroBanner(){
           <div className="col-lg-6">
             <h1 className="display-5 fw-bold mb-3 animate__animated animate__fadeInUp">Discover. Shop. Smile.</h1>
             <p className="lead text-muted mb-4">A smooth, elegant and blazing fast shopping experience. Curated products from verified merchants only.</p>
-            <div className="d-flex gap-3">
+            <div className="d-flex gap-3 justify-content-center">
               <Link to="/products" className="btn btn-primary btn-lg btn-animated"><i className="fa-solid fa-bag-shopping me-2"></i>Shop Now</Link>
-              <Link to="#featured" className="btn btn-outline-secondary btn-lg btn-animated">Explore</Link>
             </div>
           </div>
           <div className="col-lg-6">

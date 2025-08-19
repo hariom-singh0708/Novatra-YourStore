@@ -1,28 +1,24 @@
-const express = require('express');
+const express = require("express");
+const { protect } = require("../middleware/auth");
 const router = express.Router();
 
-const { ensureMerchantApproved } = require('../middleware/merchantApproval');
 const {
   placeOrder,
+  markOrderPaid,
   getUserOrders,
-  getMerchantOrders,
-  getAllOrders,
-  updateOrderStatus
-} = require('../controllers/orderController');
+  createRazorpayOrder,
+} = require("../controllers/orderController");
 
-const { protect, authorize } = require('../middleware/auth');
+// Create order (COD or online)
+router.post("/", protect, placeOrder);
 
-// User routes
-router.post('/', protect, authorize('user'), placeOrder);
-router.get('/my-orders', protect, authorize('user'), getUserOrders);
+// Create Razorpay order (online payment)
+router.post("/razorpay", protect, createRazorpayOrder);
 
-// Merchant routes
-router.get('/merchant', protect, authorize('merchant'), getMerchantOrders);
+// Verify payment and mark order as paid
+router.post("/:id/payment-success", protect, markOrderPaid);
 
-// Admin routes
-router.get('/', protect, authorize('admin'), getAllOrders);
-
-// Update order status (Merchant or Admin)
-router.patch('/:id/status', protect, authorize('admin', 'merchant'), ensureMerchantApproved, updateOrderStatus);
+// Get logged-in user's orders
+router.get("/my-orders", protect, getUserOrders);
 
 module.exports = router;

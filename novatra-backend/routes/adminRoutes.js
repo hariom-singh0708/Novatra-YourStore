@@ -18,7 +18,8 @@ router.use(protect, authorize('admin'));
 router.get('/analytics', getAnalytics);
 router.get('/users', getAllUsers);
 router.get('/merchants', getAllMerchants);
-router.patch('/merchants/:id/approval', setMerchantApproval); // body: { approve: true|false }
+router.patch('/merchants/:id/approve', setMerchantApproval); // body: { approve: true|false }
+router.put('/merchants/:id/approve', setMerchantApproval);
 router.delete('/merchants/:id', deleteMerchant);
 router.get('/products', getAllProductsAdmin);
 router.get('/orders', getAllOrders);

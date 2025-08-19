@@ -1,9 +1,10 @@
 const User = require('../models/User');
 const Merchant = require('../models/Merchant');
 const Admin = require('../models/Admin');
-
 const { hashPassword, comparePassword, generateToken } = require('../utils/auth');
 const { sendEmail, generateOTP, otpTemplate } = require('../utils/email');
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Helper: Find user in any collection
 const findUserByEmail = async (email) => {
@@ -22,7 +23,7 @@ const findUserById = async (id) => {
   );
 };
 
-// Helper: Get model based on role
+// Get model based on role
 const getModelByRole = (role) => {
   switch (role) {
     case 'merchant': return Merchant;
@@ -31,48 +32,77 @@ const getModelByRole = (role) => {
   }
 };
 
-// @desc    Register user/merchant/admin
+// Google Login
+const googleLoginHandler = async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) return res.status(400).json({ message: 'Credential is required' });
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    let user = await findUserByEmail(payload.email);
+
+    if (!user) {
+      user = await User.create({
+        name: payload.name,
+        email: payload.email,
+        googleId: payload.sub
+      });
+    }
+
+    const token = generateToken(user._id, user.role); // Using existing generateToken util
+    res.status(200).json({ token, user });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: 'Google login failed' });
+  }
+};
+
+// Register
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-
+    const { name, email, password, role, storeName } = req.body;
     const existing = await findUserByEmail(email);
-    if (existing) return res.status(400).json({ message: 'Email already registered' });
+    if (existing) return res.status(400).json({ message: "Email already registered" });
 
     const hashedPassword = await hashPassword(password);
     const otpCode = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-
     const Model = getModelByRole(role);
-    const user = await Model.create({
-      name,
-      email,
-      password: hashedPassword,
-      role,
-      otp: { code: otpCode, expires: otpExpiry }
-    });
 
+    const payload = { name, email, password: hashedPassword, role, otp: { code: otpCode, expires: otpExpiry } };
+    if (role === 'merchant') {
+      if (!storeName) return res.status(400).json({ message: "Store name required for merchants" });
+      payload.storeName = storeName;
+    }
+
+    const user = await Model.create(payload);
     const emailContent = otpTemplate(name, otpCode);
-    await sendEmail(email, 'Verify Your Email - Novatra', emailContent);
+    await sendEmail(email, "Verify Your Email - Novatra", emailContent);
 
-    res.status(201).json({ message: 'OTP sent to email', userId: user._id });
+    res.status(201).json({ message: "OTP sent to email", userId: user._id });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Verify OTP
+// Verify OTP
 const verifyOTP = async (req, res) => {
   try {
     const { userId, otp } = req.body;
     const user = await findUserById(userId);
-    if (!user || !user.otp?.code || !user.otp?.expires)
+    if (!user || !user.otp?.code || !user.otp?.expires) 
       return res.status(400).json({ message: 'Invalid request or OTP expired' });
 
     if (new Date(user.otp.expires) < new Date())
       return res.status(400).json({ message: 'OTP expired' });
 
-    if (user.otp.code !== String(otp).trim())
+    if (String(user.otp.code) !== String(otp).trim())
       return res.status(400).json({ message: 'Incorrect OTP' });
 
     user.otp = null;
@@ -80,12 +110,13 @@ const verifyOTP = async (req, res) => {
 
     const token = generateToken(user._id, user.role);
     res.status(200).json({ message: 'OTP verified', token });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Login with email/password
+// Login
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -98,11 +129,12 @@ const loginUser = async (req, res) => {
     const token = generateToken(user._id, user.role);
     res.status(200).json({ token });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Login with OTP
+// Login OTP
 const loginUserOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -111,7 +143,6 @@ const loginUserOTP = async (req, res) => {
 
     const otpCode = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-
     user.otp = { code: otpCode, expires: otpExpiry };
     await user.save();
 
@@ -120,11 +151,12 @@ const loginUserOTP = async (req, res) => {
 
     res.status(200).json({ message: 'OTP sent to email', userId: user._id });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Forgot password (send OTP)
+// Forgot Password
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -133,7 +165,6 @@ const forgotPassword = async (req, res) => {
 
     const otpCode = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-
     user.otp = { code: otpCode, expires: otpExpiry };
     await user.save();
 
@@ -142,11 +173,12 @@ const forgotPassword = async (req, res) => {
 
     res.status(200).json({ message: 'OTP sent to email', userId: user._id });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Reset password
+// Reset Password
 const resetPassword = async (req, res) => {
   try {
     const { userId, otp, newPassword } = req.body;
@@ -154,7 +186,7 @@ const resetPassword = async (req, res) => {
     if (!user || !user.otp?.code || !user.otp?.expires)
       return res.status(400).json({ message: 'Invalid OTP or user' });
 
-    if (user.otp.code !== otp || user.otp.expires < new Date())
+    if (String(user.otp.code) !== String(otp) || user.otp.expires < new Date())
       return res.status(400).json({ message: 'OTP expired or incorrect' });
 
     user.password = await hashPassword(newPassword);
@@ -163,20 +195,20 @@ const resetPassword = async (req, res) => {
 
     res.status(200).json({ message: 'Password reset successful' });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Get profile
+// Get Profile
 const getProfile = async (req, res) => {
   res.status(200).json(req.user);
 };
 
-// @desc    Update profile
+// Update Profile
 const updateProfile = async (req, res) => {
   try {
     const user = req.user;
-
     if (req.body.name) user.name = req.body.name;
     if (req.body.email) user.email = req.body.email;
     if (req.body.password) user.password = await hashPassword(req.body.password);
@@ -184,6 +216,19 @@ const updateProfile = async (req, res) => {
     await user.save();
     res.status(200).json({ message: 'Profile updated successfully' });
   } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get Me
+const getMe = async (req, res) => {
+  try {
+    const user = await findUserById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.status(200).json(user);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -196,5 +241,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getProfile,
-  updateProfile
+  updateProfile,
+  getMe,
+  googleLoginHandler
 };

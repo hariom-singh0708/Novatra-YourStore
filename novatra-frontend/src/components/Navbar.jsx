@@ -1,98 +1,99 @@
-// src/components/Navbar.jsx
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "animate.css";
-import {
-  FaStore,
-  FaUser,
-  FaShoppingCart,
-  FaSignOutAlt,
-  FaSearch,
-} from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
-import api from "../services/api";
+import { FaStore, FaUser, FaShoppingCart, FaSignOutAlt, FaSearch, FaHeart } from "react-icons/fa";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
+import { useAuth } from "../context/AuthContext.jsx";
+import { useCart } from "../context/CartContext.jsx";
+import { useWishlist } from "../context/WishlistContext.jsx"; // 👈 New Hook
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const location = useLocation();
+  const { user, logout } = useAuth();
+  const { cart } = useCart();
+  const { wishlist } = useWishlist(); // 👈 Get wishlist state
+
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Fetch user if token exists
-useEffect(() => {
-  const fetchUser = () => {
-    const storedUser = localStorage.getItem("user");
-    setUser(storedUser ? JSON.parse(storedUser) : null);
-  };
+  // Auto-close mobile menu on route change
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
 
-  fetchUser(); // on mount
-  window.addEventListener("login", fetchUser);
+  // Handle search
+  // Handle search
+const handleSearch = (e) => {
+  e.preventDefault();
+  if (search.trim()) {
+    navigate(`/products?search=${encodeURIComponent(search.trim())}`);
+    setSearch(""); // clear input after search
+  } else {
+    navigate("/products"); // if empty, go to products page
+  }
+};
 
-  return () => window.removeEventListener("login", fetchUser);
-}, []);
 
-
-
-  const toggle = () => setIsOpen(!isOpen);
-  const closeIfMobile = () => setIsOpen(false);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (search.trim()) navigate(`/products?search=${encodeURIComponent(search)}`);
-    closeIfMobile();
-  };
-
+  // Logout
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
-    toast.success("Logged out successfully!");
+    logout();
     navigate("/login");
-    closeIfMobile();
   };
 
+  // Total cart & wishlist count
+  const cartQty = cart.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const wishlistQty = wishlist.length;
+
+  // Dashboard link based on role
   const dashboardHref =
     user?.role === "admin"
-      ? "/admin/dashboard"
+      ? "/admin"
       : user?.role === "merchant"
-      ? "/merchant/dashboard"
-      : "/user/dashboard";
+        ? "/merchant"
+        : "/user";
 
   return (
     <nav className="navbar navbar-expand-lg navbar-light bg-light shadow-sm fixed-top animate__animated animate__fadeInDown">
       <div className="container">
-        {/* Logo */}
-        <Link to="/" className="navbar-brand fw-bold d-flex align-items-center" onClick={closeIfMobile}>
-          <FaStore className="me-2" /> Novatra Store
+        <Link to="/" className="navbar-brand fw-bold d-flex align-items-center">
+          <FaStore className="me-2" />
+          Novatra Store
         </Link>
 
-        {/* Toggler */}
+        {/* Mobile Toggle */}
         <button
           className="navbar-toggler"
           type="button"
           aria-controls="navbarNav"
           aria-expanded={isOpen ? "true" : "false"}
           aria-label="Toggle navigation"
-          onClick={toggle}
+          onClick={() => setIsOpen(!isOpen)}
         >
           <span className="navbar-toggler-icon"></span>
         </button>
 
         <div className={`collapse navbar-collapse ${isOpen ? "show" : ""}`} id="navbarNav">
-          {/* LEFT */}
+          {/* Left menu */}
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             <li className="nav-item">
-              <Link to="/" className="nav-link active fw-semibold" onClick={closeIfMobile}>Home</Link>
+              <Link to="/" className="nav-link active fw-semibold">
+                Home
+              </Link>
             </li>
           </ul>
 
-          {/* CENTER SEARCH */}
-          <form className="d-flex my-3 my-lg-0 mx-lg-auto flex-grow-1" style={{ maxWidth: 600 }} onSubmit={handleSearch}>
+          {/* Search */}
+          <form
+            className="d-flex my-3 my-lg-0 mx-lg-auto flex-grow-1"
+            style={{ maxWidth: 600 }}
+            onSubmit={handleSearch}
+          >
             <input
-              className="form-control me-2 rounded-pill w-100"
+              className="form-control me-2 rounded-pill"
               type="search"
               placeholder="Search products..."
-              aria-label="Search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -101,24 +102,54 @@ useEffect(() => {
             </button>
           </form>
 
-          {/* RIGHT */}
+          {/* Right Buttons */}
           <div className="d-flex align-items-center ms-lg-3 mt-2 mt-lg-0">
             {!user ? (
               <>
-                <Link to="/login" className="btn btn-outline-dark me-2" onClick={closeIfMobile}><FaUser /> Login</Link>
-                <Link to="/register" className="btn btn-outline-dark" onClick={closeIfMobile}><FaUser /> Register</Link>
+                <Link to="/login" className="btn btn-outline-dark me-2">
+                  <FaUser /> Login
+                </Link>
+                <Link to="/register" className="btn btn-outline-dark">
+                  <FaUser /> Register
+                </Link>
               </>
             ) : (
               <>
-                <Link to={dashboardHref} className="btn btn-light me-2 fw-semibold" onClick={closeIfMobile}>
-                  Welcome, {user?.name?.split(" ")[0] || "User"}
+                <Link to={dashboardHref} className="btn btn-light me-2 fw-semibold">
+                  <i className="fa fa-user"></i> Welcome, {user?.name?.split(" ")[0] || "User"}
                 </Link>
-                {user?.role === "user" && (
-                  <Link to="/cart" className="btn btn-light me-2" onClick={closeIfMobile}>
-                    <FaShoppingCart /> Cart
-                  </Link>
-                )}
-                <button onClick={handleLogout} className="btn btn-danger d-flex align-items-center">
+
+                {/* Wishlist Button */}
+                <Link to="/wishlist" className="btn btn-light me-2 position-relative">
+                  <FaHeart className="text-danger" />
+                  {wishlistQty > 0 && (
+                    <span
+                      className="position-absolute translate-middle badge rounded-pill bg-danger"
+                      style={{ fontSize: "0.75rem", top: "4px", left:"80%"}}  // 👈 yaha adjust karo
+                    >
+                      {wishlistQty}
+                    </span>
+                  )}
+                </Link>
+
+                {/* Cart Button */}
+                <Link to="/cart" className="btn btn-light me-2 position-relative me-3">
+                  <FaShoppingCart />
+                  {cartQty > 0 && (
+                    <span
+                      className="position-absolute translate-middle badge rounded-pill bg-danger"
+                      style={{ fontSize: "0.75rem", top: "4px", left:"80%"}}  // 👈 yaha adjust karo
+                    >
+                      {cartQty}
+                    </span>
+                  )}
+                </Link>
+
+
+                <button
+                  onClick={handleLogout}
+                  className="btn btn-danger d-flex align-items-center"
+                >
                   <FaSignOutAlt className="me-1" /> Logout
                 </button>
               </>
