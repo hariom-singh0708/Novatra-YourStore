@@ -19,7 +19,7 @@ const app = express();
  * CORS
  * - Use FRONTEND_URL from .env if present, otherwise allow localhost:5173 for dev
  */
-const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND = "https://novatra-three.vercel.app";
 app.use(cors({
   origin: FRONTEND,
   credentials: true
