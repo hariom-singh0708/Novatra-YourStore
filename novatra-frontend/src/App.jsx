@@ -15,7 +15,7 @@ import AdminDashboard from './pages/AdminDashboard.jsx';
 import NotFound from './pages/NotFound.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import UserDashboard from "./pages/UserDashboard";
-import VerifyOtp from "./pages/VerifyOtp"; 
+import VerifyOtp from "./pages/VerifyOtp.jsx";
 import MerchantProductForm from "./pages/MerchantProductForm";
 import WishlistPage from "./pages/WishlistPage.jsx";
 
