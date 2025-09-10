@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://novatra-yourstore.onrender.com",
+  baseURL: "https://novatra-yourstore.onrender.com/api",
   headers: {
     "Cache-Control": "no-cache",
     Pragma: "no-cache",
