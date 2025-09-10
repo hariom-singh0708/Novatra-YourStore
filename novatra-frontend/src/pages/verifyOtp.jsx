@@ -68,7 +68,7 @@ const VerifyOtp = () => {
         <p className="text-center mt-3 mb-0 text-secondary">
           Didn’t receive OTP?{" "}
           <a href="/register" className="fw-semibold text-decoration-none">
-            Register again
+            Register again.
           </a>
         </p>
       </div>
