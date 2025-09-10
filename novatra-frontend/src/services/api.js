@@ -6,6 +6,7 @@ const api = axios.create({
     "Cache-Control": "no-cache",
     Pragma: "no-cache",
     Expires: "0",
+    "Content-Type": "application/json",
   },
 });
 

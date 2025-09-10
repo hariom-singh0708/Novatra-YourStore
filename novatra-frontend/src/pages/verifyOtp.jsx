@@ -4,32 +4,31 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "animate.css";
 import { FaKey } from "react-icons/fa";
 import { useLocation, useNavigate } from "react-router-dom";
-import api from "../services/api";
 import { toast, ToastContainer } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 
 const VerifyOtp = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const userId = location.state?.userId; // passed from Register page
-  const { loginWithToken } = useAuth();
-  
+  const userId = location.state?.userId; // passed from Register/Login page
+  const { verifyOTP } = useAuth();       // ✅ use context
+
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleVerify = async (e) => {
     e.preventDefault();
-    if (!otp) return toast.warning("Please enter OTP");
+    if (!otp.trim()) return toast.warning("Please enter OTP");
     if (!userId) return toast.error("User ID missing. Please register again.");
 
     setLoading(true);
     try {
-      const res = await api.post("/users/verify-otp", { userId, otp });
-      await loginWithToken(res.data.token);
-      toast.success("OTP verified successfully!");
-      navigate("/"); // redirect to user dashboard
+      await verifyOTP(userId, otp); // ✅ context handles token, toast & API
+      navigate("/");                 // redirect after successful login
+      toast.success("Register Successfully!");
+      
     } catch (err) {
-      toast.error(err.response?.data?.message || "OTP verification failed");
+      console.error("Verify OTP error:", err);
     } finally {
       setLoading(false);
     }
@@ -45,13 +44,11 @@ const VerifyOtp = () => {
         <h3 className="text-center mb-4 fw-bold">Verify OTP</h3>
 
         <form onSubmit={handleVerify}>
-          {/* OTP Input */}
           <div className="mb-3 position-relative">
             <FaKey className="position-absolute top-50 translate-middle-y ms-2 text-secondary" />
             <input
               type="text"
               className="form-control ps-5 text-center"
-              name="otp"
               placeholder="Enter OTP"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
@@ -59,7 +56,6 @@ const VerifyOtp = () => {
             />
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}

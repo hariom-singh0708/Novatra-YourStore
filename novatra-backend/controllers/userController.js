@@ -93,6 +93,7 @@ const registerUser = async (req, res) => {
 
 // Verify OTP
 const verifyOTP = async (req, res) => {
+  console.log("verifyOTP body:", req.body); // DEBUG
   try {
     const { userId, otp } = req.body;
     const user = await findUserById(userId);
@@ -105,8 +106,8 @@ const verifyOTP = async (req, res) => {
     if (String(user.otp.code) !== String(otp).trim())
       return res.status(400).json({ message: 'Incorrect OTP' });
 
-    user.otp = null;
-    await user.save();
+    // user.otp = null;
+    // await user.save();
 
     const token = generateToken(user._id, user.role);
     res.status(200).json({ message: 'OTP verified', token });

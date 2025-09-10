@@ -23,7 +23,7 @@ export default function App() {
   return (
     <div className="d-flex flex-column min-vh-100 bg-light">
       <Navbar />
-      <main className="flex-fill mt-3">
+      <main className="flex-fill mt-5">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />

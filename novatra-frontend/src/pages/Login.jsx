@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { toast, ToastContainer } from "react-toastify";
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
@@ -16,18 +16,26 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const [userId, setUserId] = useState(null);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
 
+  // Password login
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!form.email || !form.password)
+      return toast.warning("Please enter email and password");
     setLoading(true);
     try {
       await login(form.email, form.password);
       navigate("/");
-    } catch {}
-    finally { setLoading(false); }
+    } catch {
+      toast.error("Invalid email or password");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Request OTP
   const handleRequestOTP = async () => {
     if (!form.email) return toast.warning("Enter your email first");
     setLoading(true);
@@ -35,10 +43,14 @@ const Login = () => {
       const id = await requestOTP(form.email);
       setUserId(id);
       setOtpModal(true);
-    } catch {}
-    finally { setLoading(false); }
+    } catch {
+      toast.error("Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Verify OTP
   const handleVerifyOTP = async () => {
     if (!otp) return toast.warning("Enter OTP");
     setLoading(true);
@@ -46,15 +58,21 @@ const Login = () => {
       await verifyOTP(userId, otp);
       setOtpModal(false);
       navigate("/");
-    } catch {}
-    finally { setLoading(false); }
+    } catch {
+      toast.error("Invalid OTP");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Google login
   const handleGoogleSuccess = async (res) => {
     try {
       await loginWithGoogle(res.credential);
       navigate("/");
-    } catch {}
+    } catch {
+      toast.error("Google login failed");
+    }
   };
 
   return (
@@ -63,8 +81,9 @@ const Login = () => {
         <ToastContainer position="top-right" autoClose={3000} />
 
         <div className="card shadow-lg p-4 rounded-4" style={{ width: "400px" }}>
-          <h3 className="text-center mb-4 fw-bold">Welcome Back</h3>
+          <h3 className="text-center mb-4 fw-bold">Welcome Back 👋</h3>
 
+          {/* Password Login */}
           {!otpMode ? (
             <form onSubmit={handleSubmit}>
               <div className="mb-3 position-relative">
@@ -93,46 +112,100 @@ const Login = () => {
                 />
               </div>
 
-              <button className="btn btn-primary w-100" disabled={loading}>
+              <button
+                className="btn btn-primary w-100"
+                disabled={loading || !form.email || !form.password}
+              >
                 {loading ? "Logging in…" : "Login"}
               </button>
+
+              <div className="text-end mt-2">
+                <Link
+                  to="/forgot-password"
+                  className="text-decoration-none small text-primary"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </form>
           ) : (
+            // OTP Login
             <div>
               <input
                 type="email"
                 className="form-control mb-2"
-                placeholder="Email"
+                placeholder="Enter your email"
+                name="email"
                 value={form.email}
                 onChange={handleChange}
+                required
               />
-              <button className="btn btn-primary w-100 mb-2" disabled={loading} onClick={handleRequestOTP}>
+              <button
+                className="btn btn-primary w-100 mb-2"
+                disabled={loading || !form.email}
+                onClick={handleRequestOTP}
+              >
                 {loading ? "Sending OTP…" : "Send OTP"}
               </button>
+              {!form.email && (
+                <small className="text-danger">Enter email to request OTP</small>
+              )}
             </div>
           )}
 
-          <div className="text-center my-2">
-            <p className="text-secondary">OR</p>
-            <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => toast.error("Google login failed")} />
+          {/* Divider */}
+          <div className="d-flex align-items-center my-3">
+            <hr className="flex-grow-1" />
+            <span className="px-2 text-muted small">or</span>
+            <hr className="flex-grow-1" />
           </div>
 
-          <p className="text-center mt-3">
+          {/* Google Login */}
+          <div className="text-center mb-2">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => toast.error("Google login failed")}
+            />
+          </div>
+
+          {/* Switch Login Mode */}
+          <p className="text-center mt-3 mb-1">
             {otpMode ? (
-              <span onClick={() => setOtpMode(false)} style={{ cursor: "pointer" }}>
+              <span
+                onClick={() => setOtpMode(false)}
+                style={{ cursor: "pointer", color: "#007bff" }}
+              >
                 Login with Password
               </span>
             ) : (
-              <span onClick={() => setOtpMode(true)} style={{ cursor: "pointer" }}>
+              <span
+                onClick={() => setOtpMode(true)}
+                style={{ cursor: "pointer", color: "#007bff" }}
+              >
                 Login with OTP
               </span>
             )}
+          </p>
+
+          {/* Register Link */}
+          <p className="text-center text-muted small">
+            Don’t have an account?{" "}
+            <Link
+              to="/register"
+              className="fw-semibold text-decoration-none text-primary"
+            >
+              Register here
+            </Link>
           </p>
         </div>
 
         {/* OTP Modal */}
         {otpModal && (
-          <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            style={{ background: "rgba(0,0,0,0.5)" }}
+          >
             <div className="modal-dialog modal-dialog-centered">
               <div className="modal-content p-3 rounded-4">
                 <h5 className="text-center mb-3">Enter OTP</h5>
@@ -142,8 +215,14 @@ const Login = () => {
                   placeholder="OTP"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerifyOTP()}
+                  required
                 />
-                <button className="btn btn-success w-100" disabled={loading} onClick={handleVerifyOTP}>
+                <button
+                  className="btn btn-success w-100"
+                  disabled={loading || !otp}
+                  onClick={handleVerifyOTP}
+                >
                   {loading ? "Verifying…" : "Verify OTP"}
                 </button>
               </div>
